@@ -2,7 +2,6 @@ import requests
 import json
 import time
 import os
-import uuid
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, Union, Tuple
 
@@ -17,14 +16,25 @@ class TelegramPickupBot:
         """
         self.TOKEN = token
         self.chat_id = chat_id
-        # Store active pickup requests with their unique IDs
-        self.active_requests = {}
+        self.message_id: Optional[int] = None
+        self.new_users: Dict[str, Dict[str, Any]] = {}
     
     def reset_bot_completely(self) -> None:
         """Reset the bot by clearing local data and pending updates."""
-        self.active_requests = {}
+        self.clear_local_user_data()
         self.reset_bot_webhook()
         print("Bot has been reset completely")
+    
+    def clear_local_user_data(self) -> bool:
+        """Clear any locally stored user data."""
+        self.new_users = {}
+        print("Local user data cleared")
+        
+        if os.path.exists("user_data.json"):
+            os.remove("user_data.json")
+            print("User data file removed")
+        
+        return True
     
     def reset_bot_webhook(self) -> bool:
         """Remove the webhook to ensure no old updates are processed."""
@@ -42,6 +52,11 @@ class TelegramPickupBot:
     def schedule_message_deletion(self, chat_id: Union[str, int], message_id: int, delay_seconds: int = 2) -> None:
         """
         Schedule a message for deletion after specified delay.
+        
+        Args:
+            chat_id: Chat ID where the message was sent
+            message_id: ID of the message to delete
+            delay_seconds: Time in seconds after which to delete the message (default: 24 hours)
         """
         import threading
         
@@ -63,7 +78,7 @@ class TelegramPickupBot:
         thread.start()
         print(f"Scheduled message {message_id} for deletion in {delay_seconds} seconds")
     
-    def send_message_emergency_group(self, location: str, date: str, pick_up_time: str) -> Tuple[Optional[int], str]:
+    def send_message_emergency_group(self, location: str, date: str, pick_up_time: str) -> Optional[int]:
         """
         Send a message to the emergency group with pickup details.
         
@@ -73,18 +88,14 @@ class TelegramPickupBot:
             pick_up_time: Time of the pickup
             
         Returns:
-            Tuple of (Message ID, Request ID) if successful, (None, None) otherwise
+            Message ID if successful, None otherwise
         """
-        # Generate a unique request ID
-        request_id = str(uuid.uuid4())[:8]
-        
-        # Create an inline button with the request ID embedded
         keyboard = {
             "inline_keyboard": [
                 [
                     {
                         "text": "CONFIRM PICK-UP! Click and START.",
-                        "url": f"https://t.me/skat_cards_distribution_bot?start={request_id}"
+                        "url": f"https://t.me/skat_cards_distribution_bot"
                     }
                 ]
             ]
@@ -118,26 +129,21 @@ class TelegramPickupBot:
         # Get the message ID from the response for later deletion
         result = response.json()
         if result["ok"]:
-            message_id = result["result"]["message_id"]
-            
-            # Store this message in active requests
-            self.active_requests[request_id] = {
-                "message_id": message_id,
-                "location": location,
-                "date": date,
-                "pick_up_time": pick_up_time,
-                "confirmed": False,
-                "timestamp": datetime.now()
-            }
-            
-            return message_id, request_id
+            self.message_id = result["result"]["message_id"]
+            return self.message_id
         else:
             print(f"Error: {result}")
-            return None, None
+            return None
     
     def get_bot_updates(self, offset: Optional[int] = None) -> Dict[str, Any]:
         """
         Get updates (new messages) from the bot.
+        
+        Args:
+            offset: Update ID offset
+            
+        Returns:
+            JSON response with updates
         """
         url = f"https://api.telegram.org/bot{self.TOKEN}/getUpdates"
         params = {"timeout": 30}
@@ -147,13 +153,12 @@ class TelegramPickupBot:
         response = requests.get(url, params=params)
         return response.json()
     
-    def process_updates(self, minutes: int = 1, request_id: str = None) -> Optional[Dict[str, Dict[str, Any]]]:
+    def process_updates(self, minutes: int = 1) -> Optional[Dict[str, Dict[str, Any]]]:
         """
         Process updates to detect new private messages.
         
         Args:
             minutes: Number of minutes to check for updates
-            request_id: Specific request ID to filter for
             
         Returns:
             Dictionary of new users if any, None otherwise
@@ -169,6 +174,7 @@ class TelegramPickupBot:
         
         while datetime.now() < end_time:
             updates = self.get_bot_updates(offset)
+            print(updates)
             if updates["ok"]:
                 for update in updates["result"]:
                     # Update the offset to acknowledge this update
@@ -180,40 +186,17 @@ class TelegramPickupBot:
                         
                         # Check if this is a private chat
                         if chat["type"] == "private":
-                            # Check if the message has a request ID in the start parameter
-                            message_text = update["message"].get("text", "")
                             user_id = chat["id"]
+                            user_info = {
+                                "id": user_id,
+                                "first_name": chat.get("first_name", "User"),
+                                "username": chat.get("username", ""),
+                                # Add message_id to user_info
+                                "message_id": update["message"].get("message_id")
+                            }
                             
-                            # If request_id is provided, check if it matches
-                            if request_id:
-                                if message_text.startswith(f"/start {request_id}"):
-                                    user_info = {
-                                        "id": user_id,
-                                        "first_name": chat.get("first_name", "User"),
-                                        "username": chat.get("username", ""),
-                                        "message_id": update["message"].get("message_id"),
-                                        "request_id": request_id
-                                    }
-                                    
-                                    print(f"New user detected for request {request_id}: {user_info['first_name']}")
-                                    return {str(user_id): user_info}
-                            # If no request_id is provided, accept any /start message
-                            elif message_text.startswith("/start"):
-                                # Extract the request ID from the message
-                                parts = message_text.split()
-                                if len(parts) > 1:
-                                    msg_request_id = parts[1]
-                                    if msg_request_id in self.active_requests:
-                                        user_info = {
-                                            "id": user_id,
-                                            "first_name": chat.get("first_name", "User"),
-                                            "username": chat.get("username", ""),
-                                            "message_id": update["message"].get("message_id"),
-                                            "request_id": msg_request_id
-                                        }
-                                        
-                                        print(f"New user detected for request {msg_request_id}: {user_info['first_name']}")
-                                        return {str(user_id): user_info}
+                            print(f"New user detected: {user_info['first_name']}")
+                            return {str(user_id): user_info}
             
             # Sleep briefly to avoid excessive API calls
             time.sleep(2)
@@ -221,11 +204,18 @@ class TelegramPickupBot:
         print(f"No user found in {minutes} minutes")
         return None
     
-    def send_private_message(self, user_id: Union[str, int], first_name: str, contact_number: str, 
-                             location: str, date: str, pick_up_time: str, 
-                             user_message_id: Optional[int] = None) -> bool:
+    def send_private_message(self, user_id: Union[str, int], first_name: str, contact_number: str, location:str, date:str, pick_up_time:str, user_message_id: Optional[int] = None) -> bool:
         """
         Send a private message to a user.
+        
+        Args:
+            user_id: User's Telegram ID
+            first_name: User's first name
+            contact_number: Contact number to share with the user
+            user_message_id: ID of the user's original message to delete
+            
+        Returns:
+            True if successful, False otherwise
         """
         # Delete the user's /start message if provided
         if user_message_id:
@@ -248,7 +238,7 @@ class TelegramPickupBot:
             f"<a href=\"tel:{clean_number}\">{contact_number}</a>"
             f"\n"
             f"\n"
-            f"Call now, message will be deleted in 5 minutes."
+            f"Call now, message will be deleted in 15 minutes."
         )
 
         url = f"https://api.telegram.org/bot{self.TOKEN}/sendMessage"
@@ -265,8 +255,8 @@ class TelegramPickupBot:
             print(f"Private message sent to {first_name}")
             # Get the message ID from the response
             sent_message_id = result["result"]["message_id"]
-            # Schedule message deletion after 5 minutes (300 seconds)
-            self.schedule_message_deletion(user_id, sent_message_id, 300)
+            # Schedule message deletion after 2 seconds
+            self.schedule_message_deletion(user_id, sent_message_id, 900)
             return True
         else:
             print(f"Failed to send private message to {first_name}")
@@ -275,6 +265,13 @@ class TelegramPickupBot:
     def delete_message(self, chat_id: Union[str, int], message_id: int) -> bool:
         """
         Delete a specific message.
+        
+        Args:
+            chat_id: Chat ID where the message was sent
+            message_id: ID of the message to delete
+            
+        Returns:
+            True if successful, False otherwise
         """
         url = f"https://api.telegram.org/bot{self.TOKEN}/deleteMessage"
         params = {
@@ -292,60 +289,48 @@ class TelegramPickupBot:
             print(f"Failed to delete message {message_id} in chat {chat_id}")
             return False
         
-    def delete_pickup_message(self, request_id: str) -> bool:
+    def delete_original_message(self) -> bool:
         """
-        Delete the pickup message for a specific request.
+        Delete the original message from the group.
         
-        Args:
-            request_id: ID of the request to delete
-            
         Returns:
             True if successful, False otherwise
         """
-        if request_id not in self.active_requests:
-            print(f"No active request found with ID: {request_id}")
+        if not self.message_id:
+            print("No message ID available to delete")
             return False
-        
-        message_id = self.active_requests[request_id]["message_id"]
         
         url = f"https://api.telegram.org/bot{self.TOKEN}/deleteMessage"
         params = {
             "chat_id": self.chat_id,
-            "message_id": message_id
+            "message_id": self.message_id
         }
         
         response = requests.get(url, params=params)
         if response.json()["ok"]:
-            print(f"Pickup message (ID: {message_id}) deleted successfully")
+            print(f"Original message (ID: {self.message_id}) deleted successfully")
             return True
         else:
-            print(f"Failed to delete pickup message")
+            print(f"Failed to delete original message")
             return False
     
-    def send_confirmation_to_group(self, user_info: Dict[str, Any]) -> bool:
+    def send_confirmation_to_group(self, user_info: Dict[str, Any], date, pick_up_time) -> bool:
         """
         Send a confirmation message to the group about who signed in.
-        """
-        request_id = user_info["request_id"]
-        if request_id not in self.active_requests:
-            print(f"No active request found with ID: {request_id}")
-            return False
-            
-        # Mark this request as confirmed
-        self.active_requests[request_id]["confirmed"] = True
         
+        Args:
+            user_info: Dictionary containing user information
+            
+        Returns:
+            True if successful, False otherwise
+        """
         name = user_info["first_name"]
         username = user_info.get("username", "")
-        
-        # Get request details
-        request_details = self.active_requests[request_id]
-        date = request_details["date"]
-        pick_up_time = request_details["pick_up_time"]
         
         if username:
             message = f"<b>{name}</b> (@{username}) is signing in for Pick-Up at {date}, {pick_up_time}."
         else:
-            message = f"<b>{name}</b> is signing in for Pick-Up at {date}, {pick_up_time}."
+            message = f"<b>{name}</b> is signing in"
         
         url = f"https://api.telegram.org/bot{self.TOKEN}/sendMessage"
         params = {
@@ -362,9 +347,70 @@ class TelegramPickupBot:
             print(f"Failed to send confirmation message to group")
             return False
     
-    def send_denial_to_group(self, request_id: str) -> bool:
+    def send_denial_to_group(self) -> bool:
         """
         Send a denial message to the group that nobody signed in.
+        
+        Returns:
+            True if successful, False otherwise
         """
-        if request_id not in self.active_requests:
-            print(f"No active request foun
+        url = f"https://api.telegram.org/bot{self.TOKEN}/sendMessage"
+        params = {
+            "chat_id": self.chat_id,
+            "text": "Unfortunately, no one has time for a pick up.",
+            "parse_mode": "HTML"
+        }
+        
+        response = requests.get(url, params=params)
+        if response.json()["ok"]:
+            print(f"Denial message sent to group")
+            return True
+        else:
+            print(f"Failed to send denial message to group")
+            return False
+    
+    def run_pickup_workflow(self, location: str, date: str, pick_up_time: str, 
+                        contact_number: str, wait_minutes: int = 1) -> bool:
+        """
+        Run the complete pickup workflow.
+        
+        Args:
+            location: Pickup location
+            date: Date of the pickup
+            pick_up_time: Time of the pickup
+            contact_number: Contact number for the pickup
+            wait_minutes: Number of minutes to wait for responses
+            
+        Returns:
+            True if a user picked up, False otherwise
+        """
+        # Reset the bot to clear any previous state
+        self.reset_bot_completely()
+        
+        # Send the message with the button
+        self.send_message_emergency_group(location=location, date=date, pick_up_time=pick_up_time)
+        
+        # Check for responses
+        new_users = self.process_updates(minutes=wait_minutes)
+        
+        # Delete the original message in any case
+        self.delete_original_message()
+        
+        # Handle user responses
+        if new_users:
+            for user_id, user_info in new_users.items():
+                print(new_users.items())
+                self.send_private_message(
+                    user_id=user_id, 
+                    first_name=user_info["first_name"], 
+                    contact_number=contact_number,
+                    user_message_id=user_info.get("message_id"),  # Pass the message ID
+                    location= location,
+                    date= date,
+                    pick_up_time= pick_up_time
+                )
+                self.send_confirmation_to_group(user_info, date=date, pick_up_time=pick_up_time)
+            return True
+        else:
+            self.send_denial_to_group()
+            return False
