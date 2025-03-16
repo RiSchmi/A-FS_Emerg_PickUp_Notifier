@@ -100,7 +100,7 @@ def process_submission():
             date_str = datetime.datetime.now().strftime("%A, %d %B")
         
         # Set wait minutes (time until no Saver is found)
-        wait_minutes = 60  # Adjust this as needed
+        wait_minutes = 2  # Adjust this as needed
         
         # Run the complete workflow
         result = pickup_bot.run_pickup_workflow(
