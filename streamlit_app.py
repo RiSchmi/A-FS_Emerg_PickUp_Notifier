@@ -291,9 +291,8 @@ elif st.session_state.page == 4:
             """.format(st.session_state.date, st.session_state.pickup_time, 
                       st.session_state.location if st.session_state.location else "Not specified"))
             
-            # Fix: Use reset_form function instead of directly modifying session state
-            if st.button("Submit Another"):
-                reset_form()
+            
+            
         else:
             st.warning(f"No Foodsavers were available within {st.session_state.wait_minutes} minutes. Please try again later. You can also share the left-over food in a Telegram Group and interest people come with their containers. [CLICK HERE to go to TELEGRAM](https://t.me/+2NxhCayA8bg4ODlk)")
             if st.button("Try Again"):
