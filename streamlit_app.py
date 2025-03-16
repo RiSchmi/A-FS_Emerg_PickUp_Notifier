@@ -3,7 +3,7 @@ import datetime
 import time
 from config import TelegramPickupBot
 import os
-from dotenv import load_dotenv
+
 
 # Configure page settings
 st.set_page_config(
@@ -88,9 +88,9 @@ def process_submission():
     # Here you would call your TelegramPickupBot
     try:
         # Initialize the bot with your credentials
-        load_dotenv()
-        TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-        GROUP_CHAT_ID = os.getenv('GROUP_CHAT_ID')
+        
+        TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
+        GROUP_CHAT_ID = st.secrets["GROUP_CHAT_ID"]
         
         pickup_bot = TelegramPickupBot(token=TOKEN, chat_id=GROUP_CHAT_ID)
         
