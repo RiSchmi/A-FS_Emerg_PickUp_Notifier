@@ -99,8 +99,8 @@ def process_submission():
         if date_str == "Today":
             date_str = datetime.datetime.now().strftime("%A, %d %B")
         
-        # Set wait minutes
-        wait_minutes = 1  # Adjust this as needed
+        # Set wait minutes (time until no Saver is found)
+        wait_minutes = 60  # Adjust this as needed
         
         # Run the complete workflow
         result = pickup_bot.run_pickup_workflow(
