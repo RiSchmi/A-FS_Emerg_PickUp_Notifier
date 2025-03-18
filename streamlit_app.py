@@ -256,7 +256,7 @@ elif st.session_state.page == 3:
     col1, col2 = st.columns(2)
     
     with col1:
-        st.button("Back", on_click=previous_page, use_container_width=True)
+        st.button("Back", on_click=lambda: go_to_page(2), use_container_width=True)
             
     with col2:
         st.button("Continue", on_click=lambda: go_to_page(4), use_container_width=True)
