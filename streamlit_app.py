@@ -222,7 +222,7 @@ elif st.session_state.page == 2:
     
     # Add back button at the bottom
     st.markdown('<div class="back-button">', unsafe_allow_html=True)
-    st.button("Back", on_click=go_to_page(3))
+    st.button("Back", on_click=go_to_page(1))
     st.markdown('</div>', unsafe_allow_html=True)
             
 elif st.session_state.page == 3:
