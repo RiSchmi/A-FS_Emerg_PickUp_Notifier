@@ -259,7 +259,7 @@ elif st.session_state.page == 3:
         st.button("Back", on_click=previous_page, use_container_width=True)
             
     with col2:
-        st.button("Continue", on_click=next_page, use_container_width=True)
+        st.button("Continue", on_click=lambda: go_to_page(4), use_container_width=True)
     
 elif st.session_state.page == 4:
     st.markdown('<div class="header-container">', unsafe_allow_html=True)
