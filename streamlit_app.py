@@ -54,6 +54,8 @@ if 'page' not in st.session_state:
     st.session_state.page = 1
 if 'location' not in st.session_state:
     st.session_state.location = ""
+if 'remarks' not in st.session_state:
+    st.session_state.remarks = ""
 if 'date' not in st.session_state:
     st.session_state.date = "Today"
 if 'pickup_time' not in st.session_state:
@@ -76,6 +78,7 @@ def go_to_page(page_number):
 def reset_form():
     # Reset only the form fields, not the page state
     st.session_state.location = ""
+    st.session_state.remarks = ""
     st.session_state.date = "Today"
     st.session_state.pickup_time = ""
     st.session_state.contact_number = ""
@@ -105,10 +108,12 @@ def process_submission():
         # Run the complete workflow
         result = pickup_bot.run_pickup_workflow(
             location=st.session_state.location or "Not specified",
+            remarks=st.session_state.remarks,
             date=date_str, 
             pick_up_time=st.session_state.pickup_time,
             contact_number=st.session_state.contact_number,
             wait_minutes=wait_minutes
+            
         )
         st.session_state.submission_success = result
         st.session_state.wait_minutes = wait_minutes
@@ -225,8 +230,27 @@ elif st.session_state.page == 3:
     st.title("Location (Optional)")
     st.markdown('</div>', unsafe_allow_html=True)
     
-    st.text_input("Where is the food located?", key="location", 
+    # Debug existing value
+    st.write(f"Current location value: {st.session_state.location}")
+    
+    location_input = st.text_input("Where is the food located?", value=st.session_state.location, 
                  placeholder="e.g., Otaniemi Campus, A-Block")
+    
+    # Force-update the session state
+    st.session_state.location = location_input
+
+    st.markdown('<div class="header-container">', unsafe_allow_html=True)
+    st.title("Additional Information (Optional)")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Debug existing value
+    st.write(f"Current remarks value: {st.session_state.remarks}")
+    
+    remarks_input = st.text_input("Do you want to provide any additional information?", value=st.session_state.remarks, 
+                 placeholder="e.g., amount or kind of food")
+    
+    # Force-update the session state
+    st.session_state.remarks = remarks_input
     
     # Fix: Place buttons on the same line with proper spacing
     col1, col2 = st.columns(2)
@@ -242,7 +266,6 @@ elif st.session_state.page == 4:
     st.title("Contact Information")
     st.markdown('</div>', unsafe_allow_html=True)
     
-    #st.markdown('<div class="message-box">', unsafe_allow_html=True)
     st.markdown("""
     **How your number is processed:**
     
@@ -250,20 +273,25 @@ elif st.session_state.page == 4:
     """)
     st.markdown('</div>', unsafe_allow_html=True)
     
+    # Initialize the thank you state if it doesn't exist
+    if 'showing_thank_you' not in st.session_state:
+        st.session_state.showing_thank_you = False
+    
     st.text_input("Phone Number", key="contact_number", 
                  placeholder="e.g., +358 40 1234567")
     
     # Fix: Place buttons on the same line consistently
     col1, col2 = st.columns(2)
     
-    if not st.session_state.submitted:
+    if not st.session_state.submitted and not st.session_state.showing_thank_you:
         with col1:
             st.button("Back", on_click=previous_page, use_container_width=True)
-            
         
         with col2:
             if st.session_state.contact_number.strip():  # Only enable if contact number provided
-                st.button("Submit", on_click=process_submission, use_container_width=True)
+                if st.button("Submit", key="submit_button", use_container_width=True):
+                    st.session_state.showing_thank_you = True
+                    # This will trigger a rerun of the app
             else:
                 st.button("Submit", disabled=True, use_container_width=True)
     
@@ -273,15 +301,32 @@ elif st.session_state.page == 4:
         You can also share the left-over food in a Telegram Group and interest people come with their containers. [CLICK HERE to go to TELEGRAM](https://t.me/+2NxhCayA8bg4ODlk) 
         """)
         st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Show thank you message and then process submission
+    elif st.session_state.showing_thank_you and not st.session_state.submitted:
+        st.success("Thank you! Submission completed.")
+        # Use a placeholder for the processing message
+        processing_placeholder = st.empty()
+        processing_placeholder.info("We are reaching out to potential Foodsaver. If someone is available, they will contact you.")
+        
+        # Add a small delay to show the thank you message
+        time.sleep(2)
+        
+        # Process the submission
+        process_submission()
+        
+        # Clear the processing message
+        processing_placeholder.empty()
 
     if st.session_state.submitted:
         if hasattr(st.session_state, 'submission_error'):
             st.error(f"There was an error: {st.session_state.submission_error}")
             if st.button("Try Again"):
                 st.session_state.submitted = False
+                st.session_state.showing_thank_you = False
                 del st.session_state.submission_error
         elif st.session_state.submission_success:
-            st.success("Thank you! Your information has been submitted. A Foodsaver will contact you soon.")
+            st.success("Thank you! Someone is found. A Foodsaver will contact you soon.")
             
             st.markdown("""
             **Summary:**
@@ -291,9 +336,8 @@ elif st.session_state.page == 4:
             """.format(st.session_state.date, st.session_state.pickup_time, 
                       st.session_state.location if st.session_state.location else "Not specified"))
             
-            
-            
         else:
             st.warning(f"No Foodsavers were available within {st.session_state.wait_minutes} minutes. Please try again later. You can also share the left-over food in a Telegram Group and interest people come with their containers. [CLICK HERE to go to TELEGRAM](https://t.me/+2NxhCayA8bg4ODlk)")
             if st.button("Try Again"):
                 st.session_state.submitted = False
+                st.session_state.showing_thank_you = False
