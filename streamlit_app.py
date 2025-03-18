@@ -175,7 +175,7 @@ elif st.session_state.page == 1.5:
 
     with col2:
         # Fix: Make sure clicking "Continue" actually advances to the next page
-        if st.button("Continue", on_click=lambda: go_to_page(3), use_container_width=True):
+        if st.button("Continue", on_click=lambda: go_to_page(2), use_container_width=True):
             pass
     
 elif st.session_state.page == 2:
