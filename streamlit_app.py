@@ -175,7 +175,7 @@ elif st.session_state.page == 1.5:
 
     with col2:
         # Fix: Make sure clicking "Continue" actually advances to the next page
-        if st.button("Continue", on_click=lambda: go_to_page(2), use_container_width=True):
+        if st.button("Continue", on_click=lambda: go_to_page(3), use_container_width=True):
             pass
     
 elif st.session_state.page == 2:
@@ -222,7 +222,7 @@ elif st.session_state.page == 2:
     
     # Add back button at the bottom
     st.markdown('<div class="back-button">', unsafe_allow_html=True)
-    st.button("Back", on_click=go_to_page(1))
+    st.button("Back", on_click=go_to_page(3))
     st.markdown('</div>', unsafe_allow_html=True)
             
 elif st.session_state.page == 3:
