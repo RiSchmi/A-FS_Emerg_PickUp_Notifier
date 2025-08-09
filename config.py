@@ -51,14 +51,14 @@ class TelegramPickupBot:
             print(f"Failed to reset webhook: {result}")
             return False
         
-    def schedule_message_deletion(self, chat_id: Union[str, int], message_id: int, delay_seconds: int = 2) -> None:
+    def schedule_message_deletion(self, chat_id: Union[str, int], message_id: int, delay_seconds: int = 900) -> None:
         """
         Schedule a message for deletion after specified delay.
         
         Args:
             chat_id: Chat ID where the message was sent
             message_id: ID of the message to delete
-            delay_seconds: Time in seconds after which to delete the message (default: 24 hours)
+            delay_seconds: Time in seconds after which to delete the message (default: 15 min)
         """
         import threading
         
@@ -298,7 +298,7 @@ class TelegramPickupBot:
             # Get the message ID from the response
             sent_message_id = result["result"]["message_id"]
             # Schedule message deletion after 15 minutes (900 seconds)
-            self.schedule_message_deletion(user_id, sent_message_id, 120)
+            self.schedule_message_deletion(user_id, sent_message_id, 900)
             
            # Mark request as fulfilled
             if request_id in self.active_requests:
@@ -492,3 +492,4 @@ class TelegramPickupBot:
                 del self.active_requests[request_id]
                 
             return False
+
