@@ -111,7 +111,7 @@ class TelegramPickupBot:
         reply_markup = json.dumps(keyboard)
         
         # Calculate response deadline (1 hour from now)
-        future_time = datetime.now(pytz.timezone("Europe/Helsinki")) + timedelta(seconds=900)
+        future_time = datetime.now(pytz.timezone("Europe/Helsinki")) + timedelta(seconds=3600)
         response_time = future_time.strftime('%H:%M')
         print(f'remakrs: {remarks}')
         if remarks == "":
@@ -494,5 +494,6 @@ class TelegramPickupBot:
                 del self.active_requests[request_id]
                 
             return False
+
 
 
