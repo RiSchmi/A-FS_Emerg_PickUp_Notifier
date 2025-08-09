@@ -3,6 +3,7 @@ import json
 import time
 import os
 from datetime import datetime, timedelta
+import pytz
 from typing import Dict, Optional, Any, Union, Tuple
 import uuid
 
@@ -51,7 +52,7 @@ class TelegramPickupBot:
             print(f"Failed to reset webhook: {result}")
             return False
         
-    def schedule_message_deletion(self, chat_id: Union[str, int], message_id: int, delay_seconds: int = 900) -> None:
+    def schedule_message_deletion(self, chat_id: Union[str, int], message_id: int, delay_seconds: int = 3600) -> None:
         """
         Schedule a message for deletion after specified delay.
         
@@ -110,7 +111,8 @@ class TelegramPickupBot:
         reply_markup = json.dumps(keyboard)
         
         # Calculate response deadline (1 hour from now)
-        response_time = time.strftime('%H:%M', time.localtime(time.time() + 3600))
+        future_time = datetime.now(pytz.timezone("Europe/Helsinki")) + timedelta(seconds=900)
+        response_time = future_time.strftime('%H:%M')
         print(f'remakrs: {remarks}')
         if remarks == "":
             remarks_ = ""
@@ -492,4 +494,5 @@ class TelegramPickupBot:
                 del self.active_requests[request_id]
                 
             return False
+
 
